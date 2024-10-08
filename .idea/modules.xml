@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/stalker.iml" filepath="$PROJECT_DIR$/.idea/modules/stalker.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/stalker.client.iml" filepath="$PROJECT_DIR$/.idea/modules/stalker.client.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/stalker.main.iml" filepath="$PROJECT_DIR$/.idea/modules/stalker.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/stalker.test.iml" filepath="$PROJECT_DIR$/.idea/modules/stalker.test.iml" />
