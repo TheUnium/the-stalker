@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "stalker",
+  "version": "${version}",
+  "name": "stalker",
+  "description": "omg so spooky",
+  "authors": ["unium"],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/stalker/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "me.unium.stalker.client.StalkerClient"
+    ],
+    "main": [
+      "me.unium.stalker.Stalker"
+    ]
+  },
+  "mixins": [
+    "stalker.mixins.json",
+    {
+      "config": "stalker.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
