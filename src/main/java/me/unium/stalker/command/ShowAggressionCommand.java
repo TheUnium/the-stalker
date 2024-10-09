@@ -10,7 +10,7 @@ import static net.minecraft.server.command.CommandManager.literal;
 
 public class ShowAggressionCommand {
     public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
-        dispatcher.register(literal("stalkeraggression")
+        dispatcher.register(literal("stalker-check-aggression")
                 .requires(source -> source.hasPermissionLevel(2))
                 .executes(context -> {
                     ServerCommandSource source = context.getSource();

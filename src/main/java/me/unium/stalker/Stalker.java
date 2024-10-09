@@ -1,5 +1,6 @@
 package me.unium.stalker;
 
+import me.unium.stalker.command.ChangeStateCommand;
 import me.unium.stalker.registry.ModEntities;
 import me.unium.stalker.event.StalkerEventHandler;
 import me.unium.stalker.command.ShowAggressionCommand;
@@ -16,6 +17,7 @@ public class Stalker implements ModInitializer {
 
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             ShowAggressionCommand.register(dispatcher);
+            ChangeStateCommand.register(dispatcher);
         });
     }
 }

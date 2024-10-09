@@ -62,9 +62,10 @@ public class StalkerEntity extends PathAwareEntity {
     public static DefaultAttributeContainer.Builder createStalkerAttributes() {
         return PathAwareEntity.createMobAttributes()
                 .add(EntityAttributes.GENERIC_MAX_HEALTH, 10000.0D)
-                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.3D)
+                .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.35D)
                 .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 100.0D)
-                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 4.0D);
+                .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 6.0D)
+                .add(EntityAttributes.GENERIC_ATTACK_KNOCKBACK, 1.5D);
     }
 
     @Override

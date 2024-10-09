@@ -1,5 +1,7 @@
 package me.unium.stalker.entity;
 
+import net.minecraft.entity.effect.StatusEffectInstance;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundEvents;
@@ -17,12 +19,16 @@ public class StalkerBehavior {
     private static final int TELEPORT_THRESHOLD_TICKS = 200;
     private static final int MIN_TELEPORT_DISTANCE = 15;
     private static final int MAX_TELEPORT_DISTANCE = 60;
-    private static final int AGGRESSION_ATTACK_THRESHOLD = 100;
     private static final int STARE_DURATION = 60;
     private static final int AGGRESSION_UPDATE_INTERVAL = 1200;
+    private static final int SHIELD_DISABLE_DURATION = 200;
+    private static final int MIN_ATTACK_DURATION_TICKS = 600;
+    private static final int MAX_ATTACK_DURATION_TICKS = 1200;
 
     private final StalkerEntity stalker;
     private final Random random = new Random();
+    private int attackDurationTicks = 0;
+    private int currentAttackDuration = 0;
 
     public StalkerBehavior(StalkerEntity stalker) {
         this.stalker = stalker;
@@ -77,7 +83,7 @@ public class StalkerBehavior {
     }
 
     private void stalkingState(double distanceToPlayer) {
-        float attackProbability = stalker.getAggressionMeter() / 200.0f;
+        float attackProbability = stalker.getAggressionMeter() / 150.0f;
         if (random.nextFloat() < attackProbability) {
             if (stalkerBeingObserved()) {
                 stalker.setCurrentState(StalkerState.ATTACKING);
@@ -111,13 +117,26 @@ public class StalkerBehavior {
     }
 
     private void attackingState() {
-        float continueAttackProbability = stalker.getAggressionMeter() / 200.0f;
+        if (attackDurationTicks == 0) {
+            currentAttackDuration = MIN_ATTACK_DURATION_TICKS + random.nextInt(MAX_ATTACK_DURATION_TICKS - MIN_ATTACK_DURATION_TICKS);
+        }
 
-        if (random.nextFloat() < continueAttackProbability) {
+        attackDurationTicks++;
+
+        if (attackDurationTicks < currentAttackDuration) {
+            moveTowardsPlayer();
             attackPlayer();
-            stalker.setAggressionMeter(0.0f);
         } else {
-            stalker.setCurrentState(StalkerState.STALKING);
+            float continueAttackProbability = stalker.getAggressionMeter() / 200.0f;
+
+            if (random.nextFloat() < continueAttackProbability) {
+                moveTowardsPlayer();
+                attackPlayer();
+                stalker.setAggressionMeter(0.0f);
+            } else {
+                stalker.setCurrentState(StalkerState.STALKING);
+                attackDurationTicks = 0;
+            }
         }
     }
 
@@ -190,6 +209,11 @@ public class StalkerBehavior {
 
     private void attackPlayer() {
         if (stalker.getTargetPlayer() != null) {
+            if (stalker.getTargetPlayer().isBlocking()) {
+                stalker.getTargetPlayer().addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, SHIELD_DISABLE_DURATION, 100));
+                stalker.getTargetPlayer().getItemCooldownManager().set(stalker.getTargetPlayer().getActiveItem().getItem(), SHIELD_DISABLE_DURATION);
+            }
+
             stalker.tryAttack(stalker.getTargetPlayer());
             attackSound();
         }
@@ -243,12 +267,16 @@ public class StalkerBehavior {
         stalker.setTicksSinceLastAggressionUpdate(stalker.getTicksSinceLastAggressionUpdate() + 1);
 
         if (stalker.getTicksSinceLastAggressionUpdate() >= AGGRESSION_UPDATE_INTERVAL) {
-            stalker.setAggressionMeter(stalker.getAggressionMeter() + 50.0f);
+            stalker.setAggressionMeter(stalker.getAggressionMeter() + 10.0f);
             stalker.setTicksSinceLastAggressionUpdate(0);
         }
 
         if (stalkerBeingObserved()) {
-            stalker.setAggressionMeter(stalker.getAggressionMeter() - 0.005f);
+            if (Math.random() < 0.5) {
+                stalker.setAggressionMeter(stalker.getAggressionMeter() + 0.1f);
+            } else {
+                stalker.setAggressionMeter(stalker.getAggressionMeter() - 0.1f);
+            }
         }
 
         if (amount > 0) {
@@ -294,14 +322,16 @@ public class StalkerBehavior {
             serverWorld.getServer().getPlayerManager().getPlayerList().forEach(player -> {
                 if (player == stalker.getTargetPlayer()) {
                     String debugInfo = String.format("""
-                            state: %s | coords: (%.2f, %.2f, %.2f) | distance: %.2f | last seen: %d ticks | aggression: %.5f/100 | attack chance : %.5f
+                            state: %s | coords: (%.2f, %.2f, %.2f) | distance: %.2f | last seen: %d ticks | aggression: %.5f/100 | attack chance: %.5f | attack duration: %d/%d
                             """,
                             stalker.getCurrentState(),
                             stalker.getX(), stalker.getY(), stalker.getZ(),
                             Math.sqrt(stalker.squaredDistanceTo(stalker.getTargetPlayer())),
                             stalker.getTimeSinceSeenTicks(),
                             stalker.getAggressionMeter(),
-                            stalker.getAggressionMeter() / 200.0f
+                            stalker.getAggressionMeter() / 200.0f,
+                            attackDurationTicks,
+                            currentAttackDuration
                     );
                     player.sendMessage(net.minecraft.text.Text.literal(debugInfo), true);
                 }
