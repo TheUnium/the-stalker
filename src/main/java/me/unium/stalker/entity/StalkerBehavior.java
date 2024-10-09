@@ -24,6 +24,7 @@ public class StalkerBehavior {
     private static final int SHIELD_DISABLE_DURATION = 200;
     private static final int MIN_ATTACK_DURATION_TICKS = 600;
     private static final int MAX_ATTACK_DURATION_TICKS = 1200;
+    private static final double DAMAGE_RANGE = 4.0D; // no more bedrock moments on java :pensive:
 
     private final StalkerEntity stalker;
     private final Random random = new Random();
@@ -208,14 +209,19 @@ public class StalkerBehavior {
     }
 
     private void attackPlayer() {
-        if (stalker.getTargetPlayer() != null) {
-            if (stalker.getTargetPlayer().isBlocking()) {
-                stalker.getTargetPlayer().addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, SHIELD_DISABLE_DURATION, 100));
-                stalker.getTargetPlayer().getItemCooldownManager().set(stalker.getTargetPlayer().getActiveItem().getItem(), SHIELD_DISABLE_DURATION);
-            }
+        PlayerEntity targetPlayer = stalker.getTargetPlayer();
+        if (targetPlayer != null) {
+            double distanceToPlayer = stalker.squaredDistanceTo(targetPlayer);
 
-            stalker.tryAttack(stalker.getTargetPlayer());
-            attackSound();
+            if (distanceToPlayer <= DAMAGE_RANGE * DAMAGE_RANGE) {
+                if (targetPlayer.isBlocking()) {
+                    targetPlayer.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, SHIELD_DISABLE_DURATION, 100));
+                    targetPlayer.getItemCooldownManager().set(targetPlayer.getActiveItem().getItem(), SHIELD_DISABLE_DURATION);
+                }
+
+                stalker.tryAttack(targetPlayer);
+                attackSound();
+            }
         }
     }
 
