@@ -19,6 +19,11 @@ public class ModEntities {
             FabricEntityTypeBuilder.create(SpawnGroup.MONSTER, (EntityType<StalkerEntity> entityType, World world) ->
                             StalkerEntity.getInstance(entityType, world))
                     .dimensions(EntityDimensions.fixed(0.6f, 1.8f))
+                    .trackRangeBlocks(128)
+                    .trackedUpdateRate(1)
+                    .forceTrackedVelocityUpdates(true)
+                    .spawnableFarFromPlayer()
+                    .fireImmune()
                     .build()
     );
 
