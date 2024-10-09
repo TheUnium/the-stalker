@@ -1,5 +1,8 @@
 package me.unium.stalker.entity;
 
+import me.unium.stalker.event.PlayerDamageEvent;
+import me.unium.stalker.event.PlayerEatEvent;
+import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
 import net.minecraft.entity.ai.goal.Goal;
 import net.minecraft.entity.attribute.DefaultAttributeContainer;
@@ -14,10 +17,15 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.block.BlockState;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.particle.ParticleTypes;
+import me.unium.stalker.event.StalkerEventHandler;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.Random;
 
 public class StalkerEntity extends PathAwareEntity {
+    private static final Logger LOGGER = LogManager.getLogger("StalkerMod");
+
     private PlayerEntity targetPlayer;
     private State currentState = State.IDLE;
     private State previousState = State.IDLE;
@@ -45,6 +53,15 @@ public class StalkerEntity extends PathAwareEntity {
         this.setStepHeight(1.0f);
         this.ignoreCameraFrustum = true;
         this.setPersistent();
+        StalkerEventHandler.setCurrentStalker(this);
+        LOGGER.info("Stalker {} created and set as current", this.getUuid());
+    }
+
+    @Override
+    public void remove(Entity.RemovalReason reason) {
+        super.remove(reason);
+        StalkerEventHandler.removeCurrentStalker();
+        LOGGER.info("Stalker {} removed", this.getUuid());
     }
 
     @Override
@@ -77,7 +94,7 @@ public class StalkerEntity extends PathAwareEntity {
         if (!this.getWorld().isClient) {
             updateStalkerBehavior();
             dbgInfo();
-            updateAggressionMeter();
+            updateAggressionMeter(0);
             spawnPositionParticles();
         }
     }
@@ -291,18 +308,41 @@ public class StalkerEntity extends PathAwareEntity {
         return !state.isAir() && state.isOpaque();
     }
 
-    private void updateAggressionMeter() {
-        // todo: increase aggression when take damage
-        // todo: increase aggression when starving
+    public void onPlayerEat(PlayerEatEvent event) {
+        LOGGER.info("Stalker {} received PlayerEatEvent for player {}", this.getUuid(), event.getPlayer().getName().getString());
+        int oldAggression = aggressionMeter;
+        updateAggressionMeter(3);
+        LOGGER.info("Stalker {} aggression increased from {} to {}", this.getUuid(), oldAggression, aggressionMeter);
+    }
+
+    public void onPlayerDamage(PlayerDamageEvent event) {
+        LOGGER.info("Stalker {} received PlayerDamageEvent for player {}", this.getUuid(), event.getPlayer().getName().getString());
+        updateAggressionMeter(3);
+    }
+
+    public int getAggressionMeter() {
+        return aggressionMeter;
+    }
+
+    private void updateAggressionMeter(int amount) {
+        // todo: fix this shit, its broken as fuck and idk why
         ticksSinceLastAggressionUpdate++;
 
         if (ticksSinceLastAggressionUpdate >= AGGRESSION_UPDATE_INTERVAL) {
-            aggressionMeter += 5;
+            aggressionMeter += 50;
             ticksSinceLastAggressionUpdate = 0;
+        }
+
+        if (aggressionMeter >= 100) {
+            spooooookySound();
         }
 
         if (stalkerBeingObserved()) {
             aggressionMeter -= 1;
+        }
+
+        if (amount > 0) {
+            aggressionMeter += amount;
         }
 
         long timeOfDay = this.getWorld().getTimeOfDay() % 24000;
@@ -350,7 +390,7 @@ public class StalkerEntity extends PathAwareEntity {
                             this.getX(), this.getY(), this.getZ(),
                             Math.sqrt(this.squaredDistanceTo(targetPlayer)),
                             timeSinceSeenTicks,
-                            aggressionMeter
+                            getAggressionMeter()
                     );
                     player.sendMessage(net.minecraft.text.Text.literal(debugInfo), true);
                 }
