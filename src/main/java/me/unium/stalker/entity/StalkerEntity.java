@@ -13,6 +13,7 @@ import net.minecraft.world.World;
 import me.unium.stalker.event.StalkerEventHandler;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import net.minecraft.nbt.NbtCompound;
 
 public class StalkerEntity extends PathAwareEntity {
     private static final Logger LOGGER = LogManager.getLogger("StalkerMod");
@@ -22,7 +23,7 @@ public class StalkerEntity extends PathAwareEntity {
     private StalkerState currentState = StalkerState.IDLE;
     private StalkerState previousState = StalkerState.IDLE;
     private int timeSinceSeenTicks = 0;
-    private int aggressionMeter = 0;
+    private float aggressionMeter = 0.0f;
     private int stareAtPlayerTicks = 0;
     private int ticksSinceLastAggressionUpdate = 0;
 
@@ -90,14 +91,29 @@ public class StalkerEntity extends PathAwareEntity {
 
     public void onPlayerEat(PlayerEatEvent event) {
         LOGGER.info("Stalker {} received PlayerEatEvent for player {}", this.getUuid(), event.getPlayer().getName().getString());
-        int oldAggression = aggressionMeter;
-        behavior.updateAggressionMeter(3);
+        float oldAggression = aggressionMeter;
+        behavior.updateAggressionMeter(1.5f);
         LOGGER.info("Stalker {} aggression increased from {} to {}", this.getUuid(), oldAggression, aggressionMeter);
     }
 
     public void onPlayerDamage(PlayerDamageEvent event) {
         LOGGER.info("Stalker {} received PlayerDamageEvent for player {}", this.getUuid(), event.getPlayer().getName().getString());
-        behavior.updateAggressionMeter(3);
+        behavior.updateAggressionMeter(2.0f);
+    }
+
+    @Override
+    public boolean canImmediatelyDespawn(double distanceSquared) {
+        return false;
+    }
+
+    @Override
+    public boolean isPersistent() {
+        return true;
+    }
+
+    @Override
+    public void checkDespawn() {
+        // should prevent despawning
     }
 
     public PlayerEntity getTargetPlayer() { return targetPlayer; }
@@ -108,8 +124,8 @@ public class StalkerEntity extends PathAwareEntity {
     public void setPreviousState(StalkerState state) { this.previousState = state; }
     public int getTimeSinceSeenTicks() { return timeSinceSeenTicks; }
     public void setTimeSinceSeenTicks(int ticks) { this.timeSinceSeenTicks = ticks; }
-    public int getAggressionMeter() { return aggressionMeter; }
-    public void setAggressionMeter(int aggression) { this.aggressionMeter = aggression; }
+    public float getAggressionMeter() { return aggressionMeter; }
+    public void setAggressionMeter(float aggression) { this.aggressionMeter = aggression; }
     public int getStareAtPlayerTicks() { return stareAtPlayerTicks; }
     public void setStareAtPlayerTicks(int ticks) { this.stareAtPlayerTicks = ticks; }
     public int getTicksSinceLastAggressionUpdate() { return ticksSinceLastAggressionUpdate; }

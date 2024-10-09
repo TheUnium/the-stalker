@@ -16,7 +16,7 @@ public class ShowAggressionCommand {
                     ServerCommandSource source = context.getSource();
                     StalkerEntity stalker = StalkerEventHandler.getCurrentStalker();
                     if (stalker != null) {
-                        int aggression = stalker.getAggressionMeter();
+                        float aggression = stalker.getAggressionMeter();
                         source.sendFeedback(() -> Text.literal("Current Stalker aggression: " + aggression), false);
                     } else {
                         source.sendFeedback(() -> Text.literal("No active Stalker found."), false);
