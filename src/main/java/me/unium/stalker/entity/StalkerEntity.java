@@ -16,6 +16,7 @@ import org.apache.logging.log4j.Logger;
 
 public class StalkerEntity extends PathAwareEntity {
     private static final Logger LOGGER = LogManager.getLogger("StalkerMod");
+    private static StalkerEntity instance = null;
 
     private PlayerEntity targetPlayer;
     private StalkerState currentState = StalkerState.IDLE;
@@ -27,7 +28,7 @@ public class StalkerEntity extends PathAwareEntity {
 
     private final StalkerBehavior behavior;
 
-    public StalkerEntity(EntityType<? extends PathAwareEntity> entityType, World world) {
+    private StalkerEntity(EntityType<? extends PathAwareEntity> entityType, World world) {
         super(entityType, world);
         this.setStepHeight(1.0f);
         this.ignoreCameraFrustum = true;
@@ -37,11 +38,19 @@ public class StalkerEntity extends PathAwareEntity {
         LOGGER.info("Stalker {} created and set as current", this.getUuid());
     }
 
+    public static StalkerEntity getInstance(EntityType<? extends PathAwareEntity> entityType, World world) {
+        if (instance == null || instance.isRemoved()) {
+            instance = new StalkerEntity(entityType, world);
+        }
+        return instance;
+    }
+
     @Override
     public void remove(Entity.RemovalReason reason) {
         super.remove(reason);
         StalkerEventHandler.removeCurrentStalker();
         LOGGER.info("Stalker {} removed", this.getUuid());
+        instance = null;
     }
 
     @Override
@@ -51,7 +60,7 @@ public class StalkerEntity extends PathAwareEntity {
 
     public static DefaultAttributeContainer.Builder createStalkerAttributes() {
         return PathAwareEntity.createMobAttributes()
-                .add(EntityAttributes.GENERIC_MAX_HEALTH, Float.MAX_VALUE)
+                .add(EntityAttributes.GENERIC_MAX_HEALTH, 10000.0D)
                 .add(EntityAttributes.GENERIC_MOVEMENT_SPEED, 0.3D)
                 .add(EntityAttributes.GENERIC_FOLLOW_RANGE, 100.0D)
                 .add(EntityAttributes.GENERIC_ATTACK_DAMAGE, 4.0D);
@@ -59,7 +68,7 @@ public class StalkerEntity extends PathAwareEntity {
 
     @Override
     public boolean isInvulnerableTo(DamageSource damageSource) {
-        return true;
+        return false;
     }
 
     @Override
