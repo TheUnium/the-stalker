@@ -10,7 +10,9 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.block.BlockState;
 import net.minecraft.world.World;
-
+import java.util.Random;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import java.util.Random;
 
 public class StalkerBehavior {
@@ -25,54 +27,62 @@ public class StalkerBehavior {
     private static final int MIN_ATTACK_DURATION_TICKS = 600;
     private static final int MAX_ATTACK_DURATION_TICKS = 1200;
     private static final double DAMAGE_RANGE = 4.0D; // no more bedrock moments on java :pensive:
+    private static final int MAX_FOLLOW_TICKS = 40;
 
     private final StalkerEntity stalker;
     private final Random random = new Random();
     private int attackDurationTicks = 0;
     private int currentAttackDuration = 0;
+    private int followPlayerTicks = 0;
 
+    private static final Logger LOGGER = LogManager.getLogger("StalkerMod");
     public StalkerBehavior(StalkerEntity stalker) {
         this.stalker = stalker;
     }
 
     public void updateStalkerBehavior() {
-        PlayerEntity nearestPlayer = stalker.getWorld().getClosestPlayer(stalker, STALKING_RANGE);
-        if (nearestPlayer == null) {
-            stalker.setCurrentState(StalkerState.IDLE);
-            return;
-        }
-
-        stalker.setTargetPlayer(nearestPlayer);
-        double distanceToPlayer = stalker.squaredDistanceTo(stalker.getTargetPlayer());
-
-        switch (stalker.getCurrentState()) {
-            case IDLE:
-                idleStatus(distanceToPlayer);
-                break;
-            case STALKING:
-                stalkingState(distanceToPlayer);
-                break;
-            case ATTACKING:
-                attackingState();
-                break;
-            case HIDDEN:
-                hiddenState();
-                break;
-            case TAKING_COVER:
-                takingCoverState();
-                break;
-            case STARING:
-                staringState();
-                break;
-        }
-
-        if (stalker.getCurrentState() != stalker.getPreviousState()) {
-            stalker.setPreviousState(stalker.getCurrentState());
-            if (stalker.getWorld() instanceof ServerWorld) {
-                ((ServerWorld) stalker.getWorld()).getServer().sendMessage(
-                        net.minecraft.text.Text.literal(String.format("state changed to %s", stalker.getCurrentState()))
-                );
+        try {
+            PlayerEntity nearestPlayer = stalker.getWorld().getClosestPlayer(stalker, STALKING_RANGE);
+            if (nearestPlayer == null) {
+                stalker.setCurrentState(StalkerState.IDLE);
+                return;
             }
+
+            stalker.setTargetPlayer(nearestPlayer);
+            double distanceToPlayer = stalker.squaredDistanceTo(stalker.getTargetPlayer());
+
+            switch (stalker.getCurrentState()) {
+                case IDLE:
+                    idleStatus(distanceToPlayer);
+                    break;
+                case STALKING:
+                    stalkingState(distanceToPlayer);
+                    break;
+                case ATTACKING:
+                    attackingState();
+                    break;
+                case HIDDEN:
+                    hiddenState();
+                    break;
+                case TAKING_COVER:
+                    takingCoverState();
+                    break;
+                case STARING:
+                    staringState();
+                    break;
+            }
+
+            if (stalker.getCurrentState() != stalker.getPreviousState()) {
+                stalker.setPreviousState(stalker.getCurrentState());
+                if (stalker.getWorld() instanceof ServerWorld) {
+                    ((ServerWorld) stalker.getWorld()).getServer().sendMessage(
+                            net.minecraft.text.Text.literal(String.format("state changed to %s", stalker.getCurrentState()))
+                    );
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.error("shits fucked in updateStalkerBehavior() : ", e);
+            stalker.setCurrentState(StalkerState.IDLE);
         }
     }
 
@@ -85,14 +95,34 @@ public class StalkerBehavior {
 
     private void stalkingState(double distanceToPlayer) {
         float attackProbability = stalker.getAggressionMeter() / 150.0f;
-        if (random.nextFloat() < attackProbability) {
-            if (stalkerBeingObserved()) {
-                stalker.setCurrentState(StalkerState.ATTACKING);
+
+        if (stalkerBeingObserved()) {
+            // if triggered :
+            // if stalker is more than 7 blocks away, it will slowly advance towards the player for 40 ticks
+            // when its just 7 blocks away, theres a 50-50 chance of it attacking or taking cover
+            if (followPlayerTicks > 0) {
+                followPlayerTicks--;
+                if (followPlayerTicks <= 0 || distanceToPlayer <= 7 * 7) {
+                    if (random.nextBoolean()) {
+                        stalker.setCurrentState(StalkerState.ATTACKING);
+                    } else {
+                        stalker.setCurrentState(StalkerState.TAKING_COVER);
+                        takeCover();
+                    }
+                    followPlayerTicks = 0;
+                } else {
+                    if (stalker.getNavigation().isIdle()) {
+                        Vec3d playerPos = stalker.getTargetPlayer().getPos();
+                        Vec3d stalkerPos = stalker.getPos();
+                        Vec3d direction = playerPos.subtract(stalkerPos).normalize();
+                        Vec3d targetPos = stalkerPos.add(direction.multiply(2));
+                        stalker.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 0.5);
+                    }
+                    spooooookySound();
+                }
+            } else if (random.nextFloat() < 0.2) {
+                followPlayerTicks = MAX_FOLLOW_TICKS;
             } else {
-                moveTowardsPlayer();
-            }
-        } else {
-            if (stalkerBeingObserved()) {
                 if (random.nextDouble() < 0.1) {
                     stalker.setCurrentState(StalkerState.STARING);
                     stalker.setStareAtPlayerTicks(0);
@@ -106,6 +136,11 @@ public class StalkerBehavior {
                     takeCover();
                 }
                 spooooookySound();
+            }
+        } else {
+            followPlayerTicks = 0;
+            if (random.nextFloat() < attackProbability) {
+                moveTowardsPlayer();
             } else if (distanceToPlayer < ATTACK_RANGE * ATTACK_RANGE) {
                 stalker.setCurrentState(StalkerState.HIDDEN);
                 stalker.setTimeSinceSeenTicks(0);
@@ -191,20 +226,81 @@ public class StalkerBehavior {
     }
 
     public void moveAroundPlayerRandomly() {
-        if (stalker.getTargetPlayer() != null) {
-            Vec3d randomOffset = new Vec3d(
-                    random.nextDouble() - 0.5,
-                    0,
-                    random.nextDouble() - 0.5
-            ).multiply(10);
-            Vec3d targetPos = stalker.getTargetPlayer().getPos().add(randomOffset);
-            stalker.getNavigation().startMovingTo(targetPos.x, targetPos.y, targetPos.z, 1.0);
+        PlayerEntity targetPlayer = stalker.getTargetPlayer();
+
+        if (targetPlayer == null) {
+            LOGGER.warn("shits fucked. player null.");
+            return;
+        }
+
+        if (targetPlayer.isRemoved() || !targetPlayer.isAlive()) {
+            LOGGER.info("target player got sent to the shadow realm.");
+            stalker.setTargetPlayer(null);
+            return;
+        }
+
+        Vec3d randomOffset = new Vec3d(
+                random.nextDouble() - 0.5,
+                0,
+                random.nextDouble() - 0.5
+        ).multiply(10);
+
+        Vec3d targetPos = stalker.getTargetPlayer().getPos().add(randomOffset);
+
+        double x = targetPos.x;
+        double y = targetPos.y;
+        double z = targetPos.z;
+
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+            LOGGER.warn("fucked up player pos ({}, {}, {})", x, y, z);
+            return;
+        }
+
+        if (stalker.getNavigation() == null) {
+            LOGGER.error("stalker nav is null, cant move towards player");
+            return;
+        }
+
+        boolean success = stalker.getNavigation().startMovingTo(x, y, z, 1.0);
+        if (!success) {
+            LOGGER.warn("couldnt start moving towards player @ ({}, {}, {})", x, y, z);
         }
     }
 
     private void moveTowardsPlayer() {
-        if (stalker.getTargetPlayer() != null) {
-            stalker.getNavigation().startMovingTo(stalker.getTargetPlayer().getX(), stalker.getTargetPlayer().getY(), stalker.getTargetPlayer().getZ(), 1.0);
+        if (stalker == null || stalker.getTargetPlayer() == null) {
+            LOGGER.warn("shits fucked. stalker or player null.");
+            return;
+        }
+
+        try {
+            PlayerEntity targetPlayer = stalker.getTargetPlayer();
+            if (targetPlayer.isRemoved() || !targetPlayer.isAlive()) {
+                LOGGER.info("target player got sent to the shadow realm.");
+                stalker.setTargetPlayer(null);
+                return;
+            }
+
+            double x = targetPlayer.getX();
+            double y = targetPlayer.getY();
+            double z = targetPlayer.getZ();
+
+            if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(z)) {
+                LOGGER.warn("fucked up player pos ({}, {}, {})", x, y, z);
+                return;
+            }
+
+            if (stalker.getNavigation() == null) {
+                LOGGER.error("stalker nav is null, cant move towards player");
+                return;
+            }
+
+            boolean success = stalker.getNavigation().startMovingTo(x, y, z, 1.0);
+            if (!success) {
+                LOGGER.warn("couldnt start moving towards player @ ({}, {}, {})", x, y, z);
+            }
+        } catch (Exception e) {
+            LOGGER.error("a wild error appeared! ", e);
         }
     }
 
@@ -237,9 +333,11 @@ public class StalkerBehavior {
 
             if (y != -1) {
                 stalker.teleport(x, y, z);
+                LOGGER.info("stalker tpd to {}, {}, {}", x, y, z);
                 return;
             }
         }
+        LOGGER.warn("coulnt find a safe tp location after 50 atts");
     }
 
     private double findSafeY(BlockPos pos) {
